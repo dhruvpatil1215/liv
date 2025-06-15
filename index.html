@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Live Sports Hub</title>
+  <style>
+    body {
+      margin: 0;
+      background: #121212;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 200px;
+      background: #1e1e1e;
+      padding: 20px;
+      border-right: 1px solid #333;
+    }
+    .sidebar h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    .option {
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #2b2b2b;
+      cursor: pointer;
+      border-radius: 6px;
+      text-align: center;
+      transition: background 0.2s;
+    }
+    .option:hover {
+      background: #444;
+    }
+    .option.active {
+      background: #555;
+      font-weight: bold;
+    }
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .match {
+      background: #222;
+      margin: 10px;
+      border-radius: 10px;
+      padding: 15px;
+      width: 300px;
+      display: inline-block;
+      vertical-align: top;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .match:hover {
+      background: #333;
+    }
+    img {
+      width: 100%;
+      border-radius: 8px;
+    }
+    .live {
+      color: red;
+      font-weight: bold;
+    }
+    .upcoming {
+      color: orange;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>Platforms</h2>
+    <div class="option active" onclick="loadMatches('sonyliv')">SonyLiv</div>
+    <div class="option" onclick="loadMatches('fancode')">FanCode</div>
+    <div class="option" onclick="loadMatches('willow')">Willow</div>
+  </div>
+
+  <div class="content" id="matches">
+    <h2>Loading SonyLiv Matches...</h2>
+  </div>
+
+  <script>
+    const workerURL = "https://live-events.dhruvpatil681.workers.dev";
+
+    const urls = {
+      sonyliv: 'https://raw.githubusercontent.com/drmlive/sliv-live-events/main/sonyliv.json',
+      fancode: 'https://raw.githubusercontent.com/drmlive/fancode-live-events/main/fancode.json',
+      willow: 'https://raw.githubusercontent.com/alex4528/m3u/main/jstar.m3u'
+    };
+
+    function setActive(name) {
+      document.querySelectorAll('.option').forEach(opt => {
+        opt.classList.remove('active');
+        if (opt.textContent.toLowerCase() === name) {
+          opt.classList.add('active');
+        }
+      });
+    }
+
+    function parseM3U(m3uText) {
+      const matches = [];
+      const lines = m3uText.split('\n');
+      let i = 0;
+
+      while (i < lines.length) {
+        if (lines[i].startsWith("#EXTINF")) {
+          const titleMatch = lines[i].match(/,(.*)/);
+          const logoMatch = lines[i].match(/tvg-logo="([^"]+)"/);
+          const name = titleMatch ? titleMatch[1].trim() : "Unknown Channel";
+          const logo = logoMatch ? logoMatch[1] : "";
+
+          // Skip to the actual URL (may be after multiple lines)
+          let url = "";
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].startsWith("http")) {
+              url = lines[j].trim();
+              i = j;
+              break;
+            }
+          }
+
+          if (url) {
+            matches.push({
+              title: name,
+              src: logo,
+              status: "LIVE",
+              adfree_url: url
+            });
+          }
+        }
+        i++;
+      }
+      return matches;
+    }
+
+    function loadMatches(type) {
+      const url = urls[type];
+      const box = document.getElementById("matches");
+      setActive(type);
+      box.innerHTML = `<h2>Loading ${type.charAt(0).toUpperCase() + type.slice(1)} Matches...</h2>`;
+
+      if (type === 'willow') {
+        fetch(url)
+          .then(res => res.text())
+          .then(m3uText => {
+            const matches = parseM3U(m3uText);
+            box.innerHTML = '';
+            matches.forEach(match => {
+              const div = document.createElement("div");
+              div.className = "match";
+              div.innerHTML = `
+                <img src="${match.src}" />
+                <h3>${match.title}</h3>
+                <p>Willow</p>
+                <p class="live">LIVE</p>
+              `;
+              if (match.adfree_url) {
+                const encoded = encodeURIComponent(match.adfree_url);
+                div.onclick = () => {
+                  window.location.assign(`${workerURL}/?v=${encoded}`);
+                };
+              }
+              box.appendChild(div);
+            });
+          })
+          .catch(() => {
+            box.innerHTML = `<p>Failed to load Willow data.</p>`;
+          });
+        return;
+      }
+
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          box.innerHTML = '';
+          const matches = data.matches || [];
+          if (matches.length === 0) {
+            box.innerHTML = `<p>No matches found.</p>`;
+            return;
+          }
+
+          matches.forEach(match => {
+            const div = document.createElement("div");
+            div.className = "match";
+            const title = match.title || match.match_name || match.event_name || "Untitled";
+            const image = match.src || "";
+            const channel = match.broadcast_channel || match.event_name || match.team_1 || "Unknown";
+            const isLive = match.isLive || match.status === "LIVE";
+            const videoURL = match.video_url || match.adfree_url || match.dai_url;
+
+            div.innerHTML = `
+              <img src="${image}" />
+              <h3>${title}</h3>
+              <p>${channel}</p>
+              <p class="${isLive ? 'live' : 'upcoming'}">${isLive ? 'LIVE' : 'Upcoming'}</p>
+            `;
+
+            if (videoURL && isLive) {
+              const encoded = encodeURIComponent(videoURL);
+              div.onclick = () => {
+                window.location.assign(`${workerURL}/?v=${encoded}`);
+              };
+            }
+
+            box.appendChild(div);
+          });
+        })
+        .catch(() => {
+          box.innerHTML = `<p>Error loading ${type} matches.</p>`;
+        });
+    }
+
+    // Load default
+    loadMatches('sonyliv');
+  </script>
+</body>
+</html>

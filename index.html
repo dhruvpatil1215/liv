@@ -2,77 +2,109 @@
 <html lang="en">
 <head>
   <title>Live Sports Hub</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     body {
       margin: 0;
-      background: #121212;
-      color: #fff;
-      font-family: Arial, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       display: flex;
       height: 100vh;
       overflow: hidden;
     }
     .sidebar {
-      width: 200px;
-      background: #1e1e1e;
+      width: 220px;
+      background: #161b22;
       padding: 20px;
-      border-right: 1px solid #333;
+      border-right: 1px solid #30363d;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.3);
     }
     .sidebar h2 {
-      font-size: 18px;
+      font-size: 20px;
       margin-bottom: 20px;
+      color: #58a6ff;
     }
     .option {
-      padding: 10px;
-      margin-bottom: 10px;
-      background: #2b2b2b;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #21262d;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: 8px;
       text-align: center;
-      transition: background 0.2s;
+      transition: background 0.2s, transform 0.1s;
     }
     .option:hover {
-      background: #444;
+      background: #30363d;
+      transform: scale(1.02);
     }
     .option.active {
-      background: #555;
+      background: #238636;
       font-weight: bold;
+      color: white;
     }
     .content {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 30px;
     }
     .match {
-      background: #222;
-      margin: 10px;
-      border-radius: 10px;
-      padding: 15px;
+      background: #21262d;
+      margin: 15px;
+      border-radius: 12px;
+      padding: 18px;
       width: 300px;
       display: inline-block;
       vertical-align: top;
       cursor: pointer;
       transition: 0.3s;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
     .match:hover {
-      background: #333;
+      background: #30363d;
+      transform: translateY(-3px);
     }
     img {
       width: 100%;
-      border-radius: 8px;
+      border-radius: 10px;
+      margin-bottom: 10px;
     }
-    .live {
-      color: red;
+    h3 {
+      margin: 10px 0 5px;
+      font-size: 18px;
+      color: #58a6ff;
+    }
+    .live { color: #f85149; font-weight: bold; }
+    .upcoming { color: #d29922; }
+    video {
+      width: 100%;
+      max-width: 860px;
+      margin-top: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+    .player-buttons {
+      margin: 20px 0 10px;
+    }
+    .player-buttons button {
+      margin-right: 12px;
+      padding: 10px 18px;
+      background: #238636;
+      border: none;
+      border-radius: 6px;
+      color: white;
       font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
     }
-    .upcoming {
-      color: orange;
+    .player-buttons button:hover {
+      background: #2ea043;
     }
   </style>
 </head>
 <body>
   <div class="sidebar">
-    <h2>Platforms</h2>
+    <h2>Live Platforms</h2>
     <div class="option active" onclick="loadMatches('sonyliv')">SonyLiv</div>
     <div class="option" onclick="loadMatches('fancode')">FanCode</div>
     <div class="option" onclick="loadMatches('willow')">Willow</div>
@@ -83,13 +115,13 @@
   </div>
 
   <script>
-    const workerURL = "https://live-events.dhruvpatil681.workers.dev";
-
     const urls = {
       sonyliv: 'https://raw.githubusercontent.com/drmlive/sliv-live-events/main/sonyliv.json',
       fancode: 'https://raw.githubusercontent.com/drmlive/fancode-live-events/main/fancode.json',
-      willow: 'https://raw.githubusercontent.com/alex4528/m3u/main/jstar.m3u'
+      willow: 'https://raw.githubusercontent.com/drmlive/willow-live-events/main/willow.json'
     };
+
+    let currentType = 'sonyliv';
 
     function setActive(name) {
       document.querySelectorAll('.option').forEach(opt => {
@@ -100,83 +132,19 @@
       });
     }
 
-    function parseM3U(m3uText) {
-      const matches = [];
-      const lines = m3uText.split('\n');
-      let i = 0;
-
-      while (i < lines.length) {
-        if (lines[i].startsWith("#EXTINF")) {
-          const titleMatch = lines[i].match(/,(.*)/);
-          const logoMatch = lines[i].match(/tvg-logo="([^"]+)"/);
-          const name = titleMatch ? titleMatch[1].trim() : "Unknown Channel";
-          const logo = logoMatch ? logoMatch[1] : "";
-
-          // Skip to the actual URL (may be after multiple lines)
-          let url = "";
-          for (let j = i + 1; j < lines.length; j++) {
-            if (lines[j].startsWith("http")) {
-              url = lines[j].trim();
-              i = j;
-              break;
-            }
-          }
-
-          if (url) {
-            matches.push({
-              title: name,
-              src: logo,
-              status: "LIVE",
-              adfree_url: url
-            });
-          }
-        }
-        i++;
-      }
-      return matches;
-    }
-
     function loadMatches(type) {
+      currentType = type;
       const url = urls[type];
       const box = document.getElementById("matches");
       setActive(type);
       box.innerHTML = `<h2>Loading ${type.charAt(0).toUpperCase() + type.slice(1)} Matches...</h2>`;
-
-      if (type === 'willow') {
-        fetch(url)
-          .then(res => res.text())
-          .then(m3uText => {
-            const matches = parseM3U(m3uText);
-            box.innerHTML = '';
-            matches.forEach(match => {
-              const div = document.createElement("div");
-              div.className = "match";
-              div.innerHTML = `
-                <img src="${match.src}" />
-                <h3>${match.title}</h3>
-                <p>Willow</p>
-                <p class="live">LIVE</p>
-              `;
-              if (match.adfree_url) {
-                const encoded = encodeURIComponent(match.adfree_url);
-                div.onclick = () => {
-                  window.location.assign(`${workerURL}/?v=${encoded}`);
-                };
-              }
-              box.appendChild(div);
-            });
-          })
-          .catch(() => {
-            box.innerHTML = `<p>Failed to load Willow data.</p>`;
-          });
-        return;
-      }
 
       fetch(url)
         .then(res => res.json())
         .then(data => {
           box.innerHTML = '';
           const matches = data.matches || [];
+
           if (matches.length === 0) {
             box.innerHTML = `<p>No matches found.</p>`;
             return;
@@ -185,11 +153,13 @@
           matches.forEach(match => {
             const div = document.createElement("div");
             div.className = "match";
+
             const title = match.title || match.match_name || match.event_name || "Untitled";
             const image = match.src || "";
             const channel = match.broadcast_channel || match.event_name || match.team_1 || "Unknown";
             const isLive = match.isLive || match.status === "LIVE";
-            const videoURL = match.video_url || match.adfree_url || match.dai_url;
+            const videoURL = match.video_url || match.dai_url;
+            const adFreeURL = match.adfree_url || videoURL;
 
             div.innerHTML = `
               <img src="${image}" />
@@ -198,10 +168,9 @@
               <p class="${isLive ? 'live' : 'upcoming'}">${isLive ? 'LIVE' : 'Upcoming'}</p>
             `;
 
-            if (videoURL && isLive) {
-              const encoded = encodeURIComponent(videoURL);
+            if (isLive && videoURL) {
               div.onclick = () => {
-                window.location.assign(`${workerURL}/?v=${encoded}`);
+                playStream(videoURL, adFreeURL);
               };
             }
 
@@ -213,7 +182,34 @@
         });
     }
 
-    // Load default
+    function playStream(url, adFreeURL) {
+      const box = document.getElementById("matches");
+      box.innerHTML = `
+        <div class="player-buttons">
+          <button onclick="playStream('${url}', '${adFreeURL}')">With Ads</button>
+          <button onclick="playStream('${adFreeURL}', '${adFreeURL}')">Ad-Free</button>
+          <button onclick="loadMatches('${currentType}')">Back</button>
+        </div>
+      `;
+
+      const video = document.createElement("video");
+      video.controls = true;
+      video.autoplay = true;
+
+      box.appendChild(video);
+
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url;
+        video.addEventListener('loadedmetadata', () => video.play());
+      } else {
+        alert("Your browser does not support HLS.");
+      }
+    }
+
     loadMatches('sonyliv');
   </script>
 </body>

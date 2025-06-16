@@ -1,22 +1,30 @@
+// /api/proxy.js
+
 export default async function handler(req, res) {
   const { url } = req.query;
-
-  if (!url) return res.status(400).send("Missing `url` parameter");
+  if (!url) {
+    return res.status(400).json({ error: "Missing URL" });
+  }
 
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Referer': 'https://www.fancode.com/'  // Use Sonyliv if needed
+        'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
+        'Referer': 'https://www.sonyliv.com/',
+        'Origin': 'https://www.sonyliv.com/',
       }
     });
 
-    const contentType = response.headers.get('content-type');
+    if (!response.ok) {
+      return res.status(response.status).send("Failed to fetch stream");
+    }
+
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', contentType || 'application/vnd.apple.mpegurl');
 
     response.body.pipe(res);
   } catch (err) {
-    res.status(500).send("Error: " + err.message);
+    console.error("Proxy error:", err);
+    res.status(500).json({ error: "Proxy failed", details: err.message });
   }
 }

@@ -170,7 +170,9 @@
 
             if (isLive && videoURL) {
               div.onclick = () => {
-                playStream(videoURL, adFreeURL);
+                const proxyUrl = `/api/proxy?url=${encodeURIComponent(videoURL)}`;
+                const proxyAdFreeUrl = `/api/proxy?url=${encodeURIComponent(adFreeURL)}`;
+                playStream(proxyUrl, proxyAdFreeUrl);
               };
             }
 
